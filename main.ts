@@ -1,5 +1,6 @@
 import { Resend } from 'resend';
 
+//
 interface Friend {
   name: string;
   date: string | null;
