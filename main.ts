@@ -6,19 +6,20 @@ interface Friend {
   notification_before: number;
 }
 
-const envConfig = Deno.env.get('FRIENDS_CONFIG');
+function getFriends(): Friend[] {
+  const envConfig = Deno.env.get('FRIENDS_LIST');
 
-if (!envConfig) {
-  console.error('FATAL: FRIENDS_CONFIG environment variable is missing');
-  Deno.exit(1);
-}
+  if (!envConfig) {
+    console.error('CRITICAL: FRIENDS_LIST environment variable is missing.');
+    return [];
+  }
 
-let friends: Friend[] = [];
-try {
-  friends = JSON.parse(envConfig);
-} catch (e) {
-  console.error('FATAL: Could not parse FRIENDS_CONFIG JSON', e);
-  Deno.exit(1);
+  try {
+    return JSON.parse(envConfig);
+  } catch (e) {
+    console.error('CRITICAL: Could not parse FRIENDS_LIST JSON.', e);
+    return [];
+  }
 }
 
 const resend = new Resend(Deno.env.get('RESEND_API_KEY'));
@@ -61,6 +62,7 @@ async function sendEmail(
 }
 
 function checkDates() {
+  const friends = getFriends();
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -116,5 +118,7 @@ Deno.serve((req) => {
     checkDates();
     return new Response('Manual check triggered');
   }
-  return new Response('Birthday Bot Active');
+
+  const friends = getFriends();
+  return new Response(`Birthday Bot Active. Loaded ${friends.length} friends.`);
 });
