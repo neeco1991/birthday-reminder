@@ -187,7 +187,7 @@ async function checkDates() {
   }
 }
 
-// Deno.cron('Daily Checks', '0 8 * * *', checkDates);
+Deno.cron('Daily Checks', '0 8 * * *', checkDates);
 
 Deno.serve((req) => {
   const url = new URL(req.url);
