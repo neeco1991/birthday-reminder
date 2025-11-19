@@ -1,76 +1,152 @@
 import { Resend } from 'resend';
 
-//
 interface Friend {
   name: string;
   date: string | null;
   notification_before: number;
 }
 
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 function getFriends(): Friend[] {
-  const envConfig = Deno.env.get('FRIENDS_LIST');
+  const envConfig = Deno.env.get('FRIENDS_CONFIG');
 
   if (!envConfig) {
-    console.error('CRITICAL: FRIENDS_LIST environment variable is missing.');
+    console.error('CRITICAL: FRIENDS_CONFIG environment variable is missing.');
     return [];
   }
 
   try {
     return JSON.parse(envConfig);
   } catch (e) {
-    console.error('CRITICAL: Could not parse FRIENDS_LIST JSON.', e);
+    console.error('CRITICAL: Could not parse FRIENDS_CONFIG JSON.', e);
     return [];
   }
 }
 
-const resend = new Resend(Deno.env.get('RESEND_API_KEY'));
+function createEmailTemplate(
+  friendName: string,
+  type: 'birthday' | 'advance' | 'milestone',
+  extraData?: number | string
+): { subject: string; html: string } {
+  let subject = '';
+  let title = '';
+  let message = '';
+
+  const containerStyle = `
+    font-family: Arial, sans-serif;
+    max-width: 600px;
+    margin: 20px auto;
+    border: 1px solid #D5DBDB;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    background-color: #F2F4F6;
+  `;
+
+  const headerStyle = `
+    background-color: #3498DB;
+    color: white;
+    padding: 20px;
+    text-align: center;
+  `;
+
+  const contentStyle = `
+    padding: 30px;
+    line-height: 1.6;
+    color: #2C3E50;
+  `;
+
+  const footerStyle = `
+    background-color: #EAECEE;
+    color: #888;
+    padding: 15px;
+    text-align: center;
+    font-size: 12px;
+  `;
+
+  if (type === 'milestone') {
+    subject = `🚀 1000-Day Milestone: ${friendName} is ${extraData} days old!`;
+    title = '🎉 Milestone Alert! 🎉';
+    message = `Today <strong>${friendName}</strong> has been alive for exactly <strong>${extraData}</strong> days! How amazing is that?`;
+  } else if (type === 'advance') {
+    subject = `📅 Upcoming Birthday: ${friendName}`;
+    title = '🎈 Birthday Reminder 🎈';
+    const date = extraData?.toString().split('/').slice(0, 2).join('/');
+    message = `Heads up! <strong>${friendName}</strong>'s birthday is just around the corner on ${date}. Time to get the confetti ready!`;
+  } else {
+    subject = `🎂 It's ${friendName}'s Birthday Today!`;
+    title = "🥳 It's Party Time! 🥳";
+    message = `Today is the day! Wish <strong>${friendName}</strong> a very happy birthday and make their day special.`;
+  }
+
+  const html = `
+    <div style="${containerStyle}">
+      <div style="${headerStyle}">
+        <h1>${title}</h1>
+      </div>
+      <div style="${contentStyle}">
+        <p>Hi there,</p>
+        <p>${message}</p>
+        <p>Best,</p>
+        <p>Your Friendly Birthday Bot 🤖</p>
+      </div>
+      <div style="${footerStyle}">
+        <p>This is an automated reminder. You can't reply to this email.</p>
+      </div>
+    </div>
+  `;
+
+  return { subject, html };
+}
 
 async function sendEmail(
   friend: Friend,
   type: 'birthday' | 'advance' | 'milestone',
-  extraData?: number
+  extraData?: number | string
 ) {
-  if (!Deno.env.get('RESEND_API_KEY')) {
-    console.log(`[DRY RUN] Sending ${type} email for ${friend.name}`);
+  const apiKey = Deno.env.get('RESEND_API_KEY');
+  const rawRecipients = Deno.env.get('NOTIFICATION_EMAIL');
+
+  if (!apiKey) {
+    console.error(`[ERROR] Missing RESEND_API_KEY.`);
     return;
   }
 
-  let subject = '';
-  let html = '';
-
-  if (type === 'milestone') {
-    subject = `🚀 1000-Day Milestone: ${friend.name} is ${extraData} days old!`;
-    html = `<p>Today <strong>${friend.name}</strong> has been alive for exactly <strong>${extraData}</strong> days!</p>`;
-  } else if (type === 'advance') {
-    subject = `📅 Upcoming Birthday: ${friend.name}`;
-    html = `<p>Heads up! <strong>${friend.name}</strong> has a birthday coming up on ${friend.date}.</p>`;
-  } else {
-    subject = `🎂 It's ${friend.name}'s Birthday Today!`;
-    html = `<p>Today is the day! Wish <strong>${friend.name}</strong> a happy birthday!</p>`;
+  if (!rawRecipients) {
+    console.error(`[ERROR] Missing NOTIFICATION_EMAIL env var.`);
+    return;
   }
 
+  const recipients = rawRecipients.split(',').map((email) => email.trim());
+
+  const resend = new Resend(apiKey);
+
+  const { subject, html } = createEmailTemplate(friend.name, type, extraData);
+
   try {
-    await resend.emails.send({
-      from: 'Birthday Bot <onboarding@resend.dev>',
-      to: ['nicolascionti.dev@gmail.com'],
+    const res = await resend.emails.send({
+      from: 'Birthday Bot <emailer@birthdayreminder.space>',
+      to: recipients,
       subject: subject,
       html: html,
     });
+    await sleep(2000);
+    console.log({ res });
     console.log(`Email sent for ${friend.name} [${type}]`);
   } catch (error) {
     console.error(`Failed to send email for ${friend.name}`, error);
   }
 }
 
-function checkDates() {
+async function checkDates() {
   const friends = getFriends();
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
   console.log(`Running checks for ${today.toISOString().split('T')[0]}`);
 
-  console.log(friends[2]);
-  friends.forEach((friend) => {
+  for (const friend of friends) {
     if (!friend.date) return;
 
     const parts = friend.date.split('/');
@@ -83,7 +159,7 @@ function checkDates() {
     let targetMonth = targetDate.getMonth() + 1;
 
     if (targetDay === day && targetMonth === month) {
-      sendEmail(friend, 'birthday');
+      await sendEmail(friend, 'birthday');
     }
 
     if (friend.notification_before > 0) {
@@ -93,7 +169,7 @@ function checkDates() {
       targetMonth = targetDate.getMonth() + 1;
 
       if (targetDay === day && targetMonth === month) {
-        sendEmail(friend, 'advance');
+        await sendEmail(friend, 'advance', friend.date);
       }
     }
 
@@ -105,13 +181,13 @@ function checkDates() {
       const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
 
       if (diffDays > 0 && diffDays % 1000 === 0) {
-        sendEmail(friend, 'milestone', diffDays);
+        await sendEmail(friend, 'milestone', diffDays);
       }
     }
-  });
+  }
 }
 
-Deno.cron('Daily Checks', '0 8 * * *', checkDates);
+// Deno.cron('Daily Checks', '0 8 * * *', checkDates);
 
 Deno.serve((req) => {
   const url = new URL(req.url);
