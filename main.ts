@@ -73,14 +73,19 @@ function createEmailTemplate(
     font-size: 12px;
   `;
 
+  let date = undefined as string | undefined;
+  try {
+    date = extraData?.toString().split('/').slice(0, 2).join('/');
+  } catch {
+    date = undefined;
+  }
   if (type === 'milestone') {
     subject = `🚀 1000-Day Milestone: ${friendName} is ${extraData} days old!`;
     title = '🎉 Milestone Alert! 🎉';
-    message = `Today <strong>${friendName}</strong> has been alive for exactly <strong>${extraData}</strong> days! How amazing is that?`;
+    message = `Today <strong>${friendName}</strong> (born in ${date}) has been alive for exactly <strong>${extraData}</strong> days! How amazing is that?`;
   } else if (type === 'advance') {
     subject = `📅 Upcoming Birthday: ${friendName}`;
     title = '🎈 Birthday Reminder 🎈';
-    const date = extraData?.toString().split('/').slice(0, 2).join('/');
     message = `Heads up! <strong>${friendName}</strong>'s birthday is just around the corner on ${date}. Time to get the confetti ready!`;
   } else {
     subject = `🎂 It's ${friendName}'s Birthday Today!`;
