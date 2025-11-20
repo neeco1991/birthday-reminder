@@ -9,11 +9,19 @@ interface Friend {
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 function getFriends(): Friend[] {
-  const envConfig = Deno.env.get('FRIENDS_CONFIG');
+  let envConfig = Deno.env.get('FRIENDS_CONFIG');
 
   if (!envConfig) {
     console.error('CRITICAL: FRIENDS_CONFIG environment variable is missing.');
     return [];
+  }
+
+  if (envConfig.startsWith("'") && envConfig.endsWith("'")) {
+    envConfig = envConfig.slice(1, -1);
+  }
+
+  if (envConfig.startsWith('"') && envConfig.endsWith('"')) {
+    envConfig = envConfig.slice(1, -1);
   }
 
   try {
@@ -187,7 +195,7 @@ async function checkDates() {
   }
 }
 
-Deno.cron('Daily Checks', '0 8 * * *', checkDates);
+// Deno.cron('Daily Checks', '0 8 * * *', checkDates);
 
 Deno.serve((req) => {
   const url = new URL(req.url);
