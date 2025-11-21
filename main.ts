@@ -155,12 +155,11 @@ async function sendEmail(
 async function checkDates() {
   const friends = getFriends();
   const today = new Date();
-  today.setHours(0, 0, 0, 0);
 
   console.log(`Running checks for ${today.toISOString().split('T')[0]}`);
 
   for (const friend of friends) {
-    if (!friend.date) return;
+    if (!friend.date) continue;
 
     const parts = friend.date.split('/');
     const day = parseInt(parts[0]);
